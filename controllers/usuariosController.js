@@ -198,7 +198,8 @@ class UsuariosController {
     }
   }
 
-  // 🔥 DELETE COMPLETO: Elimina de Auth, usuarios Y brigadistas (cascada)
+  // este es el eliminar para brigadistas,lo que hace es eliminar de forma cascada
+  //que quiere decir esto, que primero elimina una poruna las tablas hasta llegar a la de autenticacion
   static async delete(req, res) {
     try {
       const { id } = req.params;
@@ -224,7 +225,7 @@ class UsuariosController {
 
       let eliminadoDe = [];
 
-      // 3. Eliminar de tabla usuarios PRIMERO (cascada eliminará de brigadistas)
+      
       console.log('📊 Paso 1: Eliminando de tabla usuarios...');
       try {
         await UsuariosModel.delete(id);
@@ -239,7 +240,7 @@ class UsuariosController {
         });
       }
 
-      // 4. Eliminar de Supabase Auth
+      
       console.log('🔐 Paso 2: Eliminando de Supabase Auth...');
       try {
         const { error: deleteError } = await supabase.auth.admin.deleteUser(id);
@@ -361,7 +362,7 @@ class UsuariosController {
     }
   }
 
-  // 🔥 MÉTODO CORREGIDO: Ahora SÍ envía el email de invitación
+  // metodo para invitar a personas a traves de supabase 
   static async inviteUser(req, res) {
     try {
       const { email, rol } = req.body;
@@ -382,7 +383,7 @@ class UsuariosController {
         return res.status(409).json({ error: 'Email ya registrado' });
       }
 
-      // ✅ USAR inviteUserByEmail para que envíe el correo
+      // se usa inviteUserByEmail para que envíe el correo
       const redirectTo = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/register`;
       
       console.log('📤 Enviando invitación a:', email);
