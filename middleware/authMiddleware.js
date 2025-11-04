@@ -1,8 +1,3 @@
-//esto de aca es par verificar los tokens, la cosa es q 
-//yo no la hago manual con la libreria jwt sino q utilizo supabase para esto
-//ya q en supabase me autentica los usuarios y eso entonces me genera esos tokens alla
-//entonces aca solo uso a supabase pa eso
-
 // usuarios-service/middleware/authMiddleware.js
 import { createClient } from '@supabase/supabase-js';
 
@@ -53,7 +48,6 @@ export async function verificarToken(req, res, next) {
 }
 
 export function verificarAdmin(req, res, next) {
-  // 🔍 DEBUG: Ver qué trae el usuario
   console.log('🔍 DEBUG verificarAdmin:');
   console.log('- req.user:', req.user);
   console.log('- req.user.user_metadata:', req.user.user_metadata);
@@ -66,6 +60,28 @@ export function verificarAdmin(req, res, next) {
   if (req.userRole !== 'admin') {
     return res.status(403).json({
       error: 'Solo administradores pueden realizar esta acción',
+      debug: {
+        rol_encontrado: req.userRole,
+        user_metadata: req.user.user_metadata
+      }
+    });
+  }
+
+  next();
+}
+
+export function verificarSuperAdmin(req, res, next) {
+  console.log('🔍 DEBUG verificarSuperAdmin:');
+  console.log('- req.user:', req.user);
+  console.log('- req.userRole:', req.userRole);
+  
+  if (!req.user) {
+    return res.status(401).json({ error: 'No autenticado' });
+  }
+
+  if (req.userRole !== 'super_admin') {
+    return res.status(403).json({
+      error: 'Solo super administradores pueden realizar esta acción',
       debug: {
         rol_encontrado: req.userRole,
         user_metadata: req.user.user_metadata
