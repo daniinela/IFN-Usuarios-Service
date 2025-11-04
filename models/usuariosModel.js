@@ -3,22 +3,49 @@ import supabase from '../config/database.js';
 
 class UsuariosModel {
   
-  // Obtener todos los usuarios
+  // Obtener todos los usuarios con sus roles y privilegios
   static async getAll() {
     const { data, error } = await supabase
       .from('usuarios')
-      .select('*')
+      .select(`
+        *,
+        cuentas_rol (
+          id,
+          activo,
+          region_id,
+          departamento_id,
+          roles_sistema (
+            codigo,
+            nombre,
+            nivel
+          )
+        )
+      `)
+      .eq('activo', true)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
     return data || [];
   }
 
-  // Obtener usuario por ID
+  // Obtener usuario por ID con toda su info
   static async getById(id) {
     const { data, error } = await supabase
       .from('usuarios')
-      .select('*')
+      .select(`
+        *,
+        cuentas_rol (
+          id,
+          activo,
+          region_id,
+          departamento_id,
+          roles_sistema (
+            codigo,
+            nombre,
+            nivel
+          )
+        )
+      `)
       .eq('id', id)
       .maybeSingle();
     
@@ -30,7 +57,20 @@ class UsuariosModel {
   static async getByEmail(email) {
     const { data, error } = await supabase
       .from('usuarios')
-      .select('*')
+      .select(`
+        *,
+        cuentas_rol (
+          id,
+          activo,
+          region_id,
+          departamento_id,
+          roles_sistema (
+            codigo,
+            nombre,
+            nivel
+          )
+        )
+      `)
       .eq('email', email)
       .maybeSingle();
     
@@ -38,28 +78,29 @@ class UsuariosModel {
     return data;
   }
 
-  // Obtener usuarios por rol
-  static async getByRol(rol) {
+  // Obtener usuario por cédula
+  static async getByCedula(cedula) {
     const { data, error } = await supabase
       .from('usuarios')
       .select('*')
-      .eq('rol', rol)
-      .order('created_at', { ascending: false });
+      .eq('cedula', cedula)
+      .maybeSingle();
     
     if (error) throw error;
-    return data || [];
+    return data;
   }
 
-  // Crear usuario
+  // Crear usuario (sin rol, eso va en cuentas_rol)
   static async create(usuario) {
     const { data, error } = await supabase
       .from('usuarios')
       .insert([{
         id: usuario.id,
         email: usuario.email,
+        cedula: usuario.cedula,
         nombre_completo: usuario.nombre_completo,
-        rol: usuario.rol,
         telefono: usuario.telefono || null,
+        activo: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }])
@@ -86,7 +127,25 @@ class UsuariosModel {
     return data;
   }
 
-  // Eliminar usuario
+  // Soft delete (desactivar usuario)
+  static async softDelete(id, motivo) {
+    const { data, error } = await supabase
+      .from('usuarios')
+      .update({
+        activo: false,
+        fecha_baja: new Date().toISOString(),
+        motivo_baja: motivo,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  // Hard delete (eliminar físicamente)
   static async delete(id) {
     const { error } = await supabase
       .from('usuarios')
@@ -95,6 +154,44 @@ class UsuariosModel {
     
     if (error) throw error;
     return true;
+  }
+
+  // Obtener privilegios de un usuario
+  static async getPrivilegiosByUsuarioId(usuario_id) {
+    // Obtener cuentas de rol del usuario
+    const { data: cuentas, error: cuentasError } = await supabase
+      .from('cuentas_rol')
+      .select('tipo_rol_id')
+      .eq('usuario_id', usuario_id)
+      .eq('activo', true);
+    
+    if (cuentasError) throw cuentasError;
+    if (!cuentas || cuentas.length === 0) return [];
+
+    // Obtener privilegios de esos roles
+    const rolesIds = cuentas.map(c => c.tipo_rol_id);
+    
+    const { data, error } = await supabase
+      .from('roles_privilegios')
+      .select(`
+        privilegios (
+          codigo,
+          nombre,
+          categoria
+        )
+      `)
+      .in('rol_id', rolesIds);
+    
+    if (error) throw error;
+    
+    // Extraer solo los privilegios únicos
+    const privilegios = data
+      .map(rp => rp.privilegios)
+      .filter((p, index, self) => 
+        self.findIndex(t => t.codigo === p.codigo) === index
+      );
+    
+    return privilegios;
   }
 }
 
