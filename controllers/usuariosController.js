@@ -1,4 +1,7 @@
+// usuarios-service/controllers/usuariosController.js
 import UsuariosModel from '../models/usuariosModel.js';
+import CuentasRolModel from '../models/cuentasRolModel.js';
+import RolesModel from '../models/rolesModel.js';
 import supabase from '../config/database.js';
 import axios from 'axios';
 
@@ -57,7 +60,17 @@ class UsuariosController {
         return res.status(404).json({ error: 'Usuario no encontrado' });
       }
 
-      res.json({ user: usuario });
+      if (!usuario.activo) {
+        return res.status(403).json({ error: 'Usuario inactivo' });
+      }
+
+      // Obtener privilegios del usuario
+      const privilegios = await UsuariosModel.getPrivilegiosByUsuarioId(usuario.id);
+
+      res.json({ 
+        user: usuario,
+        privilegios: privilegios.map(p => p.codigo)
+      });
     } catch (error) {
       console.error('Error en login:', error);
       res.status(500).json({ error: error.message });
@@ -66,31 +79,63 @@ class UsuariosController {
 
   static async create(req, res) {
     try {
-      const { id, email, nombre_completo, rol, telefono } = req.body;
+      const { id, email, cedula, nombre_completo, telefono, rol_codigo, region_id, departamento_id } = req.body;
 
-      if (!id || !email || !nombre_completo || !rol) {
+      // Validar campos requeridos
+      if (!id || !email || !cedula || !nombre_completo) {
         return res.status(400).json({ 
-          error: 'Faltan campos requeridos'
+          error: 'Faltan campos requeridos: id, email, cedula, nombre_completo'
         });
       }
 
-      const rolesValidos = ['admin', 'brigadista'];
-      if (!rolesValidos.includes(rol)) {
-        return res.status(400).json({ error: 'Rol inválido' });
+      // Verificar que el email no exista
+      const emailExiste = await UsuariosModel.getByEmail(email);
+      if (emailExiste) {
+        return res.status(409).json({ error: 'Email ya registrado' });
       }
 
+      // Verificar que la cédula no exista
+      const cedulaExiste = await UsuariosModel.getByCedula(cedula);
+      if (cedulaExiste) {
+        return res.status(409).json({ error: 'Cédula ya registrada' });
+      }
+
+      // Crear usuario
       const nuevoUsuario = await UsuariosModel.create({
         id,
         email,
+        cedula,
         nombre_completo,
-        rol,
         telefono: telefono || null
       });
 
+      // Si viene rol_codigo, crear cuenta de rol
+      if (rol_codigo) {
+        const rol = await RolesModel.getByCodigo(rol_codigo);
+        if (!rol) {
+          return res.status(400).json({ error: 'Rol inválido' });
+        }
+
+        // Si es admin_regional, requiere region_id y departamento_id
+        if (rol_codigo === 'admin_regional' && (!region_id || !departamento_id)) {
+          return res.status(400).json({ 
+            error: 'Admin regional requiere region_id y departamento_id' 
+          });
+        }
+
+        await CuentasRolModel.create({
+          usuario_id: nuevoUsuario.id,
+          tipo_rol_id: rol.id,
+          region_id: rol_codigo === 'admin_regional' ? region_id : null,
+          departamento_id: rol_codigo === 'admin_regional' ? departamento_id : null
+        });
+      }
+
       res.status(201).json(nuevoUsuario);
     } catch (error) {
+      console.error('Error en create:', error);
       if (error.code === '23505') {
-        return res.status(409).json({ error: 'Email ya registrado' });
+        return res.status(409).json({ error: 'Email o cédula ya registrados' });
       }
       res.status(500).json({ error: error.message });
     }
@@ -106,20 +151,13 @@ class UsuariosController {
         return res.status(404).json({ error: 'Usuario no encontrado' });
       }
 
-      if (updates.rol) {
-        const rolesValidos = ['admin', 'brigadista'];
-        if (!rolesValidos.includes(updates.rol)) {
-          return res.status(400).json({ error: 'Rol inválido' });
-        }
-      }
-
       const usuarioActualizado = await UsuariosModel.update(id, updates);
 
-      if (updates.nombre_completo || updates.rol) {
+      // Actualizar metadata en Supabase Auth si cambió nombre
+      if (updates.nombre_completo) {
         await supabase.auth.admin.updateUserById(id, {
           user_metadata: {
-            nombre_completo: updates.nombre_completo || existe.nombre_completo,
-            rol: updates.rol || existe.rol
+            nombre_completo: updates.nombre_completo
           }
         });
       }
@@ -134,6 +172,7 @@ class UsuariosController {
   static async delete(req, res) {
     try {
       const { id } = req.params;
+      const { motivo } = req.body;
 
       console.log('\n🗑️ ========== ELIMINACIÓN INICIADA ==========');
       console.log('ID:', id);
@@ -143,18 +182,21 @@ class UsuariosController {
         return res.status(404).json({ error: 'Usuario no encontrado' });
       }
 
-      console.log('Usuario:', existe.email, '| Rol:', existe.rol);
+      console.log('Usuario:', existe.email);
 
-      if (existe.rol === 'admin') {
+      // Verificar si es super_admin
+      const esSuperAdmin = await CuentasRolModel.tieneRol(id, 'super_admin');
+      if (esSuperAdmin) {
         return res.status(403).json({ 
-          error: 'No se pueden eliminar administradores' 
+          error: 'No se pueden eliminar super administradores' 
         });
       }
 
       const eliminados = [];
 
-      // PASO 1: Brigadistas
-      if (existe.rol === 'brigadista') {
+      // PASO 1: Brigadistas (si tiene rol brigadista)
+      const esBrigadista = await CuentasRolModel.tieneRol(id, 'brigadista');
+      if (esBrigadista) {
         console.log('\n📍 PASO 1: Brigadistas...');
         try {
           const token = req.headers.authorization;
@@ -189,11 +231,11 @@ class UsuariosController {
         console.log('❌ Error Auth:', e.message);
       }
 
-      // PASO 3: Usuarios
-      console.log('\n📍 PASO 3: Usuarios...');
-      await UsuariosModel.delete(id);
+      // PASO 3: Soft delete del usuario
+      console.log('\n📍 PASO 3: Desactivando usuario...');
+      await UsuariosModel.softDelete(id, motivo || 'Eliminado por administrador');
       eliminados.push('usuarios ✅');
-      console.log('✅ Usuario eliminado');
+      console.log('✅ Usuario desactivado');
 
       console.log('\n✅ ========== COMPLETADO ==========');
       console.log('Resultado:', eliminados.join(' | '));
@@ -206,20 +248,6 @@ class UsuariosController {
 
     } catch (error) {
       console.error('\n❌ ERROR:', error.message);
-      res.status(500).json({ error: error.message });
-    }
-  }
-
-  static async getByRol(req, res) {
-    try {
-      const { rol } = req.params;
-      const rolesValidos = ['admin', 'brigadista'];
-      if (!rolesValidos.includes(rol)) {
-        return res.status(400).json({ error: 'Rol inválido' });
-      }
-      const usuarios = await UsuariosModel.getByRol(rol);
-      res.json(usuarios);
-    } catch (error) {
       res.status(500).json({ error: error.message });
     }
   }
@@ -278,14 +306,23 @@ class UsuariosController {
 
   static async inviteUser(req, res) {
     try {
-      const { email, rol } = req.body;
+      const { email, rol_codigo, region_id, departamento_id } = req.body;
       
-      if (!email || !rol) {
-        return res.status(400).json({ error: 'Email y rol requeridos' });
+      if (!email || !rol_codigo) {
+        return res.status(400).json({ error: 'Email y rol_codigo requeridos' });
       }
       
-      if (!['admin', 'brigadista'].includes(rol)) {
+      // Validar que el rol existe
+      const rol = await RolesModel.getByCodigo(rol_codigo);
+      if (!rol) {
         return res.status(400).json({ error: 'Rol inválido' });
+      }
+
+      // Si es admin_regional, requiere ubicación
+      if (rol_codigo === 'admin_regional' && (!region_id || !departamento_id)) {
+        return res.status(400).json({ 
+          error: 'Admin regional requiere region_id y departamento_id' 
+        });
       }
       
       const usuarioExiste = await UsuariosModel.getByEmail(email).catch(() => null);
@@ -294,7 +331,12 @@ class UsuariosController {
       }
 
       const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: { rol, invited: true },
+        data: { 
+          rol_codigo, 
+          region_id: region_id || null,
+          departamento_id: departamento_id || null,
+          invited: true 
+        },
         redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/register`
       });
       
@@ -309,9 +351,20 @@ class UsuariosController {
       res.json({ 
         message: 'Invitación enviada',
         email,
-        rol,
+        rol: rol.nombre,
         userId: data.user.id
       });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Obtener privilegios de un usuario
+  static async getPrivilegios(req, res) {
+    try {
+      const { id } = req.params;
+      const privilegios = await UsuariosModel.getPrivilegiosByUsuarioId(id);
+      res.json(privilegios);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
