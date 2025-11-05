@@ -46,37 +46,61 @@ class UsuariosController {
     }
   }
 
-  static async login(req, res) {
-    try {
-      const { email } = req.body;
-      
-      if (!email) {
-        return res.status(400).json({ error: 'Email es requerido' });
-      }
+  // usuarios-service/controllers/usuariosController.js
+// Solo actualizar el método login:
 
-      const usuario = await UsuariosModel.getByEmail(email);
-      
-      if (!usuario) {
-        return res.status(404).json({ error: 'Usuario no encontrado' });
-      }
-
-      if (!usuario.activo) {
-        return res.status(403).json({ error: 'Usuario inactivo' });
-      }
-
-      // Obtener privilegios del usuario
-      const privilegios = await UsuariosModel.getPrivilegiosByUsuarioId(usuario.id);
-
-      res.json({ 
-        user: usuario,
-        privilegios: privilegios.map(p => p.codigo)
-      });
-    } catch (error) {
-      console.error('Error en login:', error);
-      res.status(500).json({ error: error.message });
+static async login(req, res) {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email es requerido' });
     }
-  }
 
+    const usuario = await UsuariosModel.getByEmail(email);
+    
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    if (!usuario.activo) {
+      return res.status(403).json({ error: 'Usuario inactivo' });
+    }
+
+    // ✅ NUEVO: Obtener roles y privilegios del usuario
+    const cuentasRol = await CuentasRolModel.getByUsuarioId(usuario.id);
+    const rolesActivos = cuentasRol
+      .filter(cuenta => cuenta.activo)
+      .map(cuenta => ({
+        id: cuenta.id,
+        codigo: cuenta.roles_sistema.codigo,
+        nombre: cuenta.roles_sistema.nombre,
+        nivel: cuenta.roles_sistema.nivel,
+        region_id: cuenta.region_id,
+        departamento_id: cuenta.departamento_id
+      }));
+
+    // ✅ Obtener privilegios del usuario
+    const privilegios = await UsuariosModel.getPrivilegiosByUsuarioId(usuario.id);
+
+    res.json({ 
+      user: {
+        id: usuario.id,
+        email: usuario.email,
+        cedula: usuario.cedula,
+        nombre_completo: usuario.nombre_completo,
+        telefono: usuario.telefono,
+        activo: usuario.activo,
+        created_at: usuario.created_at
+      },
+      roles: rolesActivos,
+      privilegios: privilegios.map(p => p.codigo)
+    });
+  } catch (error) {
+    console.error('Error en login:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
   static async create(req, res) {
     try {
       const { id, email, cedula, nombre_completo, telefono, rol_codigo, region_id, departamento_id } = req.body;
