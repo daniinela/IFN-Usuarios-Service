@@ -76,6 +76,6 @@ router.post('/roles-privilegios/asignar-multiples', verificarToken, verificarSup
 router.delete('/roles-privilegios/:rol_id/:privilegio_id', verificarToken, verificarSuperAdmin, RolesPrivilegiosController.remover);
 router.get('/roles-privilegios/rol/:rol_id', verificarToken, RolesPrivilegiosController.getByRolId);
 router.put('/roles-privilegios/rol/:rol_id/reemplazar', verificarToken, verificarSuperAdmin, RolesPrivilegiosController.reemplazar);
-router.get('/', verificarToken, CuentasRolController.getByFiltros
-);
+router.get('/', verificarToken, CuentasRolController.getByFiltros);
+router.get('/', verificarToken, CuentasRolController.getByFiltros);
 export default router;

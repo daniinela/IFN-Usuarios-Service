@@ -124,5 +124,43 @@ class CuentasRolController {
       res.status(500).json({ error: error.message });
     }
   }
+  static async getByFiltros(req, res) {
+  try {
+    const { rol_codigo, municipio_id, departamento_id, activo = true } = req.query;
+    
+    let query = supabase
+      .from('cuentas_rol')
+      .select(`
+        *,
+        usuario:usuarios(id, nombre_completo, email),
+        roles_sistema(codigo, nombre)
+      `)
+      .eq('activo', activo);
+    
+    if (rol_codigo) {
+      const rol = await RolesModel.getByCodigo(rol_codigo);
+      if (rol) {
+        query = query.eq('tipo_rol_id', rol.id);
+      }
+    }
+    
+    if (municipio_id) {
+      query = query.eq('municipio_id', municipio_id);
+    }
+    
+    if (departamento_id) {
+      query = query.eq('departamento_id', departamento_id);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    res.json(data || []);
+  } catch (error) {
+    console.error('Error en getByFiltros:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
 }
 export default CuentasRolController;
