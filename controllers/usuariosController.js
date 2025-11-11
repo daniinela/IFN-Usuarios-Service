@@ -46,7 +46,45 @@ class UsuariosController {
     }
   }
 
-  // usuarios-service/controllers/usuariosController.js
+static async getBulk(req, res) {
+    try {
+      const { ids } = req.body;
+      
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ 
+          error: 'Se requiere un array de IDs' 
+        });
+      }
+
+      // Limitar a 100 IDs por request
+      if (ids.length > 100) {
+        return res.status(400).json({ 
+          error: 'Máximo 100 IDs por request' 
+        });
+      }
+
+      // Validar que todos sean UUIDs válidos
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const idsValidos = ids.filter(id => uuidRegex.test(id));
+
+      if (idsValidos.length === 0) {
+        return res.json([]);
+      }
+
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, email, nombre_completo, activo')
+        .in('id', idsValidos)
+        .eq('activo', true);
+      
+      if (error) throw error;
+      
+      res.json(data || []);
+    } catch (error) {
+      console.error('Error en getBulk:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
 // Solo actualizar el método login:
 
 static async login(req, res) {
