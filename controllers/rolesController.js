@@ -46,50 +46,6 @@ class RolesController {
     }
   }
 
-  // Crear rol (solo super_admin)
-  static async create(req, res) {
-    try {
-      const { codigo, nombre, nivel, descripcion } = req.body;
-      const creado_por = req.user?.id; // Del middleware de autenticación
-
-      // Validar campos requeridos
-      if (!codigo || !nombre || !nivel) {
-        return res.status(400).json({ 
-          error: 'Faltan campos requeridos: codigo, nombre, nivel' 
-        });
-      }
-
-      // Validar nivel
-      const nivelesValidos = ['sistema', 'regional', 'operacional'];
-      if (!nivelesValidos.includes(nivel)) {
-        return res.status(400).json({ 
-          error: 'Nivel inválido. Debe ser: sistema, regional u operacional' 
-        });
-      }
-
-      // Verificar que el código no exista
-      const existe = await RolesModel.getByCodigo(codigo);
-      if (existe) {
-        return res.status(409).json({ error: 'Ya existe un rol con ese código' });
-      }
-
-      const nuevoRol = await RolesModel.create({
-        codigo,
-        nombre,
-        nivel,
-        descripcion: descripcion || null,
-        creado_por
-      });
-
-      res.status(201).json(nuevoRol);
-    } catch (error) {
-      console.error('Error en create:', error);
-      if (error.code === '23505') {
-        return res.status(409).json({ error: 'Código de rol ya existe' });
-      }
-      res.status(500).json({ error: error.message });
-    }
-  }
 
   // Obtener privilegios de un rol
   static async getPrivilegios(req, res) {
