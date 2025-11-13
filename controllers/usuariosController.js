@@ -92,7 +92,7 @@ static async login(req, res) {
         created_at: usuario.created_at
       },
       roles: rolesActivos,
-      privilegios: privilegios.map(p => p.codigo)
+      privilegios: privilegios 
     });
   } catch (error) {
     console.error('Error en login:', error);
