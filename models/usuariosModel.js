@@ -3,40 +3,31 @@ import supabase from '../config/database.js';
 
 class UsuariosModel {
   
-  // Obtener todos los usuarios con sus roles y privilegios
-static async getAll() {
-  const { data, error } = await supabase
-    .from('usuarios')
-    .select(`
-      id, email, cedula, nombre_completo, telefono, activo,
-      cuentas_rol (
-        id, activo, region_id, departamento_id,
-        roles_sistema (codigo, nombre, nivel)
-      )
-    `)
-    .eq('activo', true)
-    .order('nombre_completo', { ascending: true });
-  
-  if (error) throw error;
-  return data || [];
-}
+  static async getAll() {
+    const { data, error } = await supabase
+      .from('usuarios')
+      .select(`
+        *,
+        cuentas_rol (
+          id, activo, region_id, departamento_id, municipio_id,
+          roles_sistema (codigo, nombre, nivel)
+        )
+      `)
+      .eq('activo', true)
+      .order('nombre_completo', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
+  }
 
-  // Obtener usuario por ID con toda su info
   static async getById(id) {
     const { data, error } = await supabase
       .from('usuarios')
       .select(`
         *,
         cuentas_rol (
-          id,
-          activo,
-          region_id,
-          departamento_id,
-          roles_sistema (
-            codigo,
-            nombre,
-            nivel
-          )
+          id, activo, region_id, departamento_id, municipio_id,
+          roles_sistema (codigo, nombre, nivel, descripcion)
         )
       `)
       .eq('id', id)
@@ -46,22 +37,14 @@ static async getAll() {
     return data;
   }
 
-  // Obtener usuario por email
   static async getByEmail(email) {
     const { data, error } = await supabase
       .from('usuarios')
       .select(`
         *,
         cuentas_rol (
-          id,
-          activo,
-          region_id,
-          departamento_id,
-          roles_sistema (
-            codigo,
-            nombre,
-            nivel
-          )
+          id, activo, region_id, departamento_id, municipio_id,
+          roles_sistema (codigo, nombre, nivel)
         )
       `)
       .eq('email', email)
@@ -71,7 +54,6 @@ static async getAll() {
     return data;
   }
 
-  // Obtener usuario por cédula
   static async getByCedula(cedula) {
     const { data, error } = await supabase
       .from('usuarios')
@@ -83,26 +65,30 @@ static async getAll() {
     return data;
   }
 
-  // Crear usuario (sin rol, eso va en cuentas_rol)
-static async create(usuario) {
-  const { data, error } = await supabase
-    .from('usuarios')
-    .insert([{
-      id: usuario.id,
-      email: usuario.email,
-      cedula: usuario.cedula,
-      nombre_completo: usuario.nombre_completo,
-      telefono: usuario.telefono || null,
-      activo: true
-    }])
-    .select()
-    .single();
-  
-  if (error) throw error;
-  return data;
-}
+  static async create(usuario) {
+    const { data, error } = await supabase
+      .from('usuarios')
+      .insert([{
+        id: usuario.id,
+        email: usuario.email,
+        cedula: usuario.cedula,
+        nombre_completo: usuario.nombre_completo,
+        telefono: usuario.telefono || null,
+        municipio_residencia: usuario.municipio_residencia || null,
+        titulos: usuario.titulos || [],
+        experiencia_laboral: usuario.experiencia_laboral || [],
+        disponibilidad: usuario.disponibilidad || [],
+        info_extra_calificaciones: usuario.info_extra_calificaciones || null,
+        estado_aprobacion: 'pendiente',
+        activo: true
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
 
-  // Actualizar usuario
   static async update(id, updates) {
     const { data, error } = await supabase
       .from('usuarios')
@@ -118,7 +104,6 @@ static async create(usuario) {
     return data;
   }
 
-  // Soft delete (desactivar usuario)
   static async softDelete(id, motivo) {
     const { data, error } = await supabase
       .from('usuarios')
@@ -136,43 +121,66 @@ static async create(usuario) {
     return data;
   }
 
-  // Hard delete (eliminar físicamente)
-  static async delete(id) {
-    const { error } = await supabase
+  // Usuarios pendientes de aprobación
+  static async getPendientes() {
+    const { data, error } = await supabase
       .from('usuarios')
-      .delete()
-      .eq('id', id);
+      .select('*')
+      .eq('estado_aprobacion', 'pendiente')
+      .eq('activo', true)
+      .order('created_at', { ascending: true });
     
     if (error) throw error;
-    return true;
+    return data || [];
   }
 
-static async getPrivilegiosByUsuarioId(usuario_id) {
-  const { data, error } = await supabase
-    .from('cuentas_rol')
-    .select(`
-      roles_sistema!inner (
-        roles_privilegios (
-          privilegios (codigo, nombre, categoria)
-        )
-      )
-    `)
-    .eq('usuario_id', usuario_id)
-    .eq('activo', true);
-  
-  if (error) throw error;
-  
-  const privilegiosSet = new Set();
-  data.forEach(cr => {
-    cr.roles_sistema?.roles_privilegios?.forEach(rp => {
-      if (rp.privilegios) {
-        privilegiosSet.add(JSON.stringify(rp.privilegios));
-      }
-    });
-  });
-  
-  return Array.from(privilegiosSet).map(p => JSON.parse(p));
-}
+  // Aprobar usuario (Gestor de Recursos)
+  static async aprobar(id) {
+    const { data, error } = await supabase
+      .from('usuarios')
+      .update({
+        estado_aprobacion: 'aprobado',
+        fecha_aprobacion: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  // Rechazar usuario
+  static async rechazar(id, motivo) {
+    const { data, error } = await supabase
+      .from('usuarios')
+      .update({
+        estado_aprobacion: 'rechazado',
+        motivo_baja: motivo,
+        activo: false,
+        fecha_baja: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async getByEstadoAprobacion(estado) {
+    const { data, error } = await supabase
+      .from('usuarios')
+      .select('*')
+      .eq('estado_aprobacion', estado)
+      .eq('activo', true)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  }
 }
 
 export default UsuariosModel;

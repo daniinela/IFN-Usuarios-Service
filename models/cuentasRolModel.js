@@ -1,17 +1,14 @@
 // usuarios-service/models/cuentasRolModel.js
 import supabase from '../config/database.js';
+
 class CuentasRolModel {
-  // Obtener todas las cuentas de rol de un usuario
+  
   static async getByUsuarioId(usuario_id) {
     const { data, error } = await supabase
       .from('cuentas_rol')
       .select(`
         *,
-        roles_sistema (
-          codigo,
-          nombre,
-          nivel
-        )
+        roles_sistema (codigo, nombre, nivel, descripcion)
       `)
       .eq('usuario_id', usuario_id);
     
@@ -19,54 +16,102 @@ class CuentasRolModel {
     return data || [];
   }
 
-  // Crear cuenta de rol (asignar rol a usuario)
   static async create(cuentaRol) {
     const { data, error } = await supabase
       .from('cuentas_rol')
-      .insert([{usuario_id: cuentaRol.usuario_id,tipo_rol_id: cuentaRol.tipo_rol_id,region_id: cuentaRol.region_id || null,departamento_id: cuentaRol.departamento_id || null,activo: true,created_at: new Date().toISOString()
+      .insert([{
+        usuario_id: cuentaRol.usuario_id,
+        tipo_rol_id: cuentaRol.tipo_rol_id,
+        region_id: cuentaRol.region_id || null,
+        departamento_id: cuentaRol.departamento_id || null,
+        municipio_id: cuentaRol.municipio_id || null,
+        activo: true
       }])
-      .select()
+      .select(`
+        *,
+        roles_sistema (codigo, nombre, nivel)
+      `)
       .single();
+    
     if (error) throw error;
     return data;
   }
-  // Desactivar cuenta de rol
+
   static async desactivar(id) {
     const { data, error } = await supabase
       .from('cuentas_rol')
-      .update({ activo: false })
+      .update({ 
+        activo: false,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', id)
       .select()
       .single();
+    
     if (error) throw error;
     return data;
   }
-  // Activar cuenta de rol
+
   static async activar(id) {
     const { data, error } = await supabase
       .from('cuentas_rol')
-      .update({ activo: true })
+      .update({ 
+        activo: true,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', id)
       .select()
       .single();
+    
     if (error) throw error;
     return data;
   }
-  // Verificar si un usuario tiene un rol específico
+
   static async tieneRol(usuario_id, codigo_rol) {
     const { data, error } = await supabase
       .from('cuentas_rol')
       .select(`
-        roles_sistema!inner (
-          codigo
-        )
+        roles_sistema!inner (codigo)
       `)
       .eq('usuario_id', usuario_id)
       .eq('roles_sistema.codigo', codigo_rol)
       .eq('activo', true)
       .maybeSingle();
+    
     if (error) throw error;
     return !!data;
+  }
+
+  static async getByFiltros(filtros) {
+    let query = supabase
+      .from('cuentas_rol')
+      .select(`
+        *,
+        usuarios!inner (id, nombre_completo, email, estado_aprobacion),
+        roles_sistema (codigo, nombre, nivel)
+      `)
+      .eq('activo', filtros.activo !== undefined ? filtros.activo : true);
+    
+    if (filtros.rol_codigo) {
+      query = query.eq('roles_sistema.codigo', filtros.rol_codigo);
+    }
+    
+    if (filtros.departamento_id) {
+      query = query.eq('departamento_id', filtros.departamento_id);
+    }
+    
+    if (filtros.municipio_id) {
+      query = query.eq('municipio_id', filtros.municipio_id);
+    }
+
+    if (filtros.solo_aprobados) {
+      query = query.eq('usuarios.estado_aprobacion', 'aprobado');
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    return data || [];
   }
 }
 

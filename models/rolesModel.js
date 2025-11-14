@@ -17,7 +17,6 @@ class RolesModel {
       .select('*')
       .eq('id', id)
       .maybeSingle();
-    
     if (error) throw error;
     return data;
   }

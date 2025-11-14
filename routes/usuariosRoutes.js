@@ -3,70 +3,92 @@ import express from 'express';
 import UsuariosController from '../controllers/usuariosController.js';
 import RolesController from '../controllers/rolesController.js';
 import CuentasRolController from '../controllers/cuentasRolController.js';
-import PrivilegiosController from '../controllers/privilegiosController.js';
-import RolesPrivilegiosController from '../controllers/rolesPrivilegiosController.js';
-import { verificarToken, verificarSuperAdmin } from '../middleware/authMiddleware.js';
+import { 
+  verificarToken, 
+  verificarGestorRecursos,
+  verificarCoordIFN
+} from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 // ============================================
 // RUTAS PÚBLICAS (sin autenticación)
 // ============================================
+
 router.post('/login', UsuariosController.login);
 router.post('/', UsuariosController.create);
-router.post('/confirmar-email/:userId', UsuariosController.confirmarEmail);
 router.get('/email/:email', UsuariosController.getByEmail);
 
 // ============================================
 // RUTAS PROTEGIDAS - USUARIOS
 // ============================================
+
 router.get('/', verificarToken, UsuariosController.getAll);
 router.get('/:id', verificarToken, UsuariosController.getById);
-router.get('/:id/privilegios', verificarToken, UsuariosController.getPrivilegios);
 router.put('/:id', verificarToken, UsuariosController.update);
-router.put('/:id/password', verificarToken, UsuariosController.changePassword);
-
-// RUTAS SOLO SUPER ADMIN - USUARIOS
-router.post('/invite', verificarToken, verificarSuperAdmin, UsuariosController.inviteUser);
-router.delete('/:id', verificarToken, verificarSuperAdmin, UsuariosController.delete);
+router.delete('/:id', verificarToken, verificarCoordIFN, UsuariosController.delete);
 
 // ============================================
-// RUTAS PROTEGIDAS - ROLES (solo lectura)
+// RUTAS APROBACIÓN - GESTOR DE RECURSOS
 // ============================================
+
+router.get('/pendientes/lista', 
+  verificarToken, 
+  verificarGestorRecursos, 
+  UsuariosController.getPendientes
+);
+
+router.post('/:id/aprobar', 
+  verificarToken, 
+  verificarGestorRecursos, 
+  UsuariosController.aprobar
+);
+
+router.post('/:id/rechazar', 
+  verificarToken, 
+  verificarGestorRecursos, 
+  UsuariosController.rechazar
+);
+
+// ============================================
+// RUTAS - ROLES (solo lectura)
+// ============================================
+
 router.get('/roles/all', verificarToken, RolesController.getAll);
 router.get('/roles/:id', verificarToken, RolesController.getById);
 router.get('/roles/codigo/:codigo', verificarToken, RolesController.getByCodigo);
-router.get('/roles/:id/privilegios', verificarToken, RolesController.getPrivilegios);
+router.get('/roles/nivel/:nivel', verificarToken, RolesController.getByNivel);
 
 // ============================================
-// RUTAS PROTEGIDAS - CUENTAS ROL
+// RUTAS - CUENTAS ROL
 // ============================================
-router.get('/cuentas-rol', verificarToken, CuentasRolController.getByFiltros);
-router.get('/cuentas-rol/usuario/:usuario_id', verificarToken, CuentasRolController.getByUsuarioId);
-router.get('/cuentas-rol/verificar/:usuario_id/:codigo_rol', verificarToken, CuentasRolController.verificarRol);
 
-// RUTAS SOLO SUPER ADMIN - CUENTAS ROL
-router.post('/cuentas-rol', verificarToken, verificarSuperAdmin, CuentasRolController.create);
-router.patch('/cuentas-rol/:id/desactivar', verificarToken, verificarSuperAdmin, CuentasRolController.desactivar);
-router.patch('/cuentas-rol/:id/activar', verificarToken, verificarSuperAdmin, CuentasRolController.activar);
+router.get('/cuentas-rol/filtros', 
+  verificarToken, 
+  CuentasRolController.getByFiltros
+);
 
-// ============================================
-// RUTAS PROTEGIDAS - PRIVILEGIOS (solo lectura)
-// ============================================
-router.get('/privilegios/all', verificarToken, PrivilegiosController.getAll);
-router.get('/privilegios/categoria/:categoria', verificarToken, PrivilegiosController.getByCategoria);
-router.get('/privilegios/agrupados', verificarToken, PrivilegiosController.getAgrupados);
+router.get('/cuentas-rol/usuario/:usuario_id', 
+  verificarToken, 
+  CuentasRolController.getByUsuarioId
+);
 
+router.post('/cuentas-rol', 
+  verificarToken, 
+  verificarCoordIFN, 
+  CuentasRolController.create
+);
 
-// ============================================
-// RUTAS PROTEGIDAS - ROLES PRIVILEGIOS
-// ============================================
-router.get('/roles-privilegios/rol/:rol_id', verificarToken, RolesPrivilegiosController.getByRolId);
+router.patch('/cuentas-rol/:id/desactivar', 
+  verificarToken, 
+  verificarCoordIFN, 
+  CuentasRolController.desactivar
+);
 
-// RUTAS SOLO SUPER ADMIN - ROLES PRIVILEGIOS
-router.post('/roles-privilegios/asignar', verificarToken, verificarSuperAdmin, RolesPrivilegiosController.asignar);
-router.post('/roles-privilegios/asignar-multiples', verificarToken, verificarSuperAdmin, RolesPrivilegiosController.asignarMultiples);
-router.delete('/roles-privilegios/:rol_id/:privilegio_id', verificarToken, verificarSuperAdmin, RolesPrivilegiosController.remover);
-router.put('/roles-privilegios/rol/:rol_id/reemplazar', verificarToken, verificarSuperAdmin, RolesPrivilegiosController.reemplazar);
+router.patch('/cuentas-rol/:id/activar', 
+  verificarToken, 
+  verificarCoordIFN, 
+  CuentasRolController.activar
+);
 
 export default router;
