@@ -13,8 +13,8 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Rutas
-app.use('/api/usuarios', usuariosRoutes);
+// ✅ UNA SOLA LÍNEA - todas las rutas están dentro de usuariosRoutes
+app.use('/api', usuariosRoutes);
 
 // Ruta de health check
 app.get('/health', (req, res) => {

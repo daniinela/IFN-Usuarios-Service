@@ -3,18 +3,25 @@ import supabase from '../config/database.js';
 
 class CuentasRolModel {
   
-  static async getByUsuarioId(usuario_id) {
-    const { data, error } = await supabase
-      .from('cuentas_rol')
-      .select(`
-        *,
-        roles_sistema (codigo, nombre, nivel, descripcion)
-      `)
-      .eq('usuario_id', usuario_id);
-    
-    if (error) throw error;
-    return data || [];
+static async getByUsuarioId(usuario_id) {
+  console.log('📊 Consultando cuentas_rol para:', usuario_id);
+  
+  const { data, error } = await supabase
+    .from('cuentas_rol')
+    .select(`
+      *,
+      roles_sistema (codigo, nombre, nivel, descripcion)
+    `)
+    .eq('usuario_id', usuario_id);
+  
+  if (error) {
+    console.error('❌ Error en query cuentas_rol:', error);
+    throw error;
   }
+  
+  console.log('✅ Datos obtenidos de cuentas_rol:', data);
+  return data || [];
+}
 
   static async create(cuentaRol) {
     const { data, error } = await supabase

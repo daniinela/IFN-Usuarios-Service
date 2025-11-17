@@ -1,36 +1,50 @@
+//esto de aca es par verificar los tokens, la cosa es q 
+//yo no la hago manual con la libreria jwt sino q utilizo supabase para esto
+//ya q en supabase me autentica los usuarios y eso entonces me genera esos tokens alla
+//entonces aca solo uso a supabase pa eso
+
 // usuarios-service/middleware/authMiddleware.js
 import { createClient } from '@supabase/supabase-js';
 import CuentasRolModel from '../models/cuentasRolModel.js';
 
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_ANON_KEY  // ← Correcto
 );
 
 console.log('🔍 Verificando Supabase config (usuarios-service):');
-console.log('URL:', supabaseUrl ? '✅' : '❌');
-console.log('Key:', supabaseKey ? '✅' : '❌');
+console.log('URL:', process.env.SUPABASE_URL ? '✅' : '❌');
+console.log('ANON Key:', process.env.SUPABASE_ANON_KEY ? '✅' : '❌');
 
 export async function verificarToken(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('❌ No se proporcionó token');
       return res.status(401).json({ error: 'Token no proporcionado' });
     }
 
     const token = authHeader.replace('Bearer ', '');
+    console.log('🔍 Verificando token...');
+    
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
-      return res.status(401).json({ error: 'Token inválido' });
+      console.log('❌ Token inválido:', error?.message);
+      return res.status(401).json({ 
+        error: 'Token inválido',
+        detalle: error?.message 
+      });
     }
 
+    console.log('✅ Usuario autenticado:', user.email);
     req.user = user;
     req.userId = user.id;
     next();
   } catch (error) {
-    console.error('Error verificando token:', error);
+    console.error('❌ Error verificando token:', error);
     return res.status(401).json({ error: 'Error de autenticación' });
   }
 }

@@ -8,6 +8,7 @@ class CuentasRolController {
   static async getByUsuarioId(req, res) {
     try {
       const { usuario_id } = req.params;
+    console.log('🔍 Buscando cuentas para usuario:', usuario_id);
       const usuario = await UsuariosModel.getById(usuario_id);
       if (!usuario) {
         return res.status(404).json({ error: 'Usuario no encontrado' });
