@@ -231,6 +231,45 @@ static async getByEmail(req, res) {
     });
   }
 }
+static async getJefesBrigadaDisponibles(req, res) {
+  try {
+    const { region_id, departamento_id, municipio_id } = req.query;
+    
+    console.log('🔍 Filtrando Jefes de Brigada:', { region_id, departamento_id, municipio_id });
+    
+    // Construir filtros
+    const filtros = {
+      rol_codigo: 'JEFE_BRIGADA',
+      activo: true,
+      solo_aprobados: true
+    };
+    
+    // Priorizar filtro más específico disponible
+    if (municipio_id) {
+      filtros.municipio_id = municipio_id;
+    } else if (departamento_id) {
+      filtros.departamento_id = departamento_id;
+    } else if (region_id) {
+      filtros.region_id = region_id;
+    }
+    
+    const jefesBrigada = await CuentasRolModel.getByFiltros(filtros);
+    
+    console.log(`✅ ${jefesBrigada.length} Jefes de Brigada encontrados`);
+    
+    res.json({
+      success: true,
+      data: jefesBrigada,
+      total: jefesBrigada.length
+    });
+  } catch (error) {
+    console.error('❌ Error en getJefesBrigadaDisponibles:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+}
   static async rechazar(req, res) {
     try {
       const { id } = req.params;

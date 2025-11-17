@@ -35,6 +35,11 @@ router.get('/cuentas-rol/filtros',
   verificarToken, 
   CuentasRolController.getByFiltros
 );
+router.get(
+  '/jefes-brigada-disponibles',
+  verificarToken,
+  UsuariosController.getJefesBrigadaDisponibles
+);
 
 router.get('/cuentas-rol/usuario/:usuario_id', 
   CuentasRolController.getByUsuarioId
