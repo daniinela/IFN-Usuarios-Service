@@ -44,27 +44,29 @@ class UsuariosModel {
     return data;
   }
 
-  static async create(usuario) {
-    const { data, error } = await supabase
-      .from('usuarios')
-      .insert([{
-        email: usuario.email,
-        nombre_completo: usuario.nombre_completo,
-        cedula: usuario.cedula,
-        telefono: usuario.telefono,
-        municipio_residencia: usuario.municipio_residencia,
-        titulos: usuario.titulos || [],
-        experiencia_laboral: usuario.experiencia_laboral || [],
-        disponibilidad: usuario.disponibilidad || [],
-        info_extra_calificaciones: usuario.info_extra_calificaciones,
-        estado_aprobacion: 'pendiente'
-      }])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  }
+static async create(usuario) {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .insert([{
+      id: usuario.id, // 🆕 Permitir pasar el ID desde Auth
+      email: usuario.email,
+      nombre_completo: usuario.nombre_completo || null, // 🆕 Permitir null
+      cedula: usuario.cedula || null, // 🆕 Permitir null
+      telefono: usuario.telefono || null,
+      municipio_residencia: usuario.municipio_residencia || null, // 🆕 Permitir null
+      titulos: usuario.titulos || [],
+      experiencia_laboral: usuario.experiencia_laboral || [],
+      disponibilidad: usuario.disponibilidad || [],
+      info_extra_calificaciones: usuario.info_extra_calificaciones || null,
+      estado_aprobacion: usuario.estado_aprobacion || 'pendiente',
+      activo: usuario.activo !== undefined ? usuario.activo : false
+    }])
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}
 
   static async update(id, updates) {
     const { data, error } = await supabase

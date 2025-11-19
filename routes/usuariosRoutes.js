@@ -35,11 +35,6 @@ router.get('/cuentas-rol/filtros',
   verificarToken, 
   CuentasRolController.getByFiltros
 );
-router.get(
-  '/jefes-brigada-disponibles',
-  verificarToken,
-  UsuariosController.getJefesBrigadaDisponibles
-);
 
 router.get('/cuentas-rol/usuario/:usuario_id', 
   CuentasRolController.getByUsuarioId
@@ -64,21 +59,50 @@ router.patch('/cuentas-rol/:id/activar',
 );
 
 // ============================================
-// RUTAS APROBACIÓN - GESTOR DE RECURSOS (ANTES de /:id)
+// 🆕 RUTAS ESPECÍFICAS DE USUARIOS (ANTES de /:id)
 // ============================================
 
+// ✅ CORREGIDO: Agregar /usuarios al path
+router.get('/usuarios/jefes-brigada-disponibles',
+  verificarToken,
+  UsuariosController.getJefesBrigadaDisponibles
+);
+
+// Pendientes de aprobación
 router.get('/usuarios/pendientes', 
   verificarToken, 
   verificarGestorRecursos, 
   UsuariosController.getPendientes
 );
 
+// Personal operacional únicamente
+router.get('/usuarios/personal-operacional',
+  verificarToken,
+  verificarGestorRecursos,
+  UsuariosController.getPersonalOperacional
+);
+
+// Invitar usuario
+router.post('/usuarios/invite',
+  verificarToken,
+  verificarGestorRecursos,
+  UsuariosController.inviteUser
+);
+
+// Buscar por email (también debe ir ANTES de /:id)
+router.get('/usuarios/email/:email', 
+  verificarToken,
+  UsuariosController.getByEmail
+);
+
+// Aprobar usuario
 router.post('/usuarios/:id/aprobar', 
   verificarToken, 
   verificarGestorRecursos, 
   UsuariosController.aprobar
 );
 
+// Rechazar usuario
 router.post('/usuarios/:id/rechazar', 
   verificarToken, 
   verificarGestorRecursos, 
@@ -89,8 +113,8 @@ router.post('/usuarios/:id/rechazar',
 // RUTAS PROTEGIDAS - USUARIOS (al final por ser genéricas)
 // ============================================
 
-router.get('/usuarios/:id', UsuariosController.getById);
 router.get('/usuarios', UsuariosController.getAll);
+router.get('/usuarios/:id', UsuariosController.getById);  // ← AL FINAL
 router.put('/usuarios/:id', UsuariosController.update);
 router.patch('/usuarios/:id', UsuariosController.update);
 router.delete('/usuarios/:id', UsuariosController.delete);
